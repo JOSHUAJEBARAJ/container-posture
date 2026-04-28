@@ -1,18 +1,18 @@
 {
-  "name": "container-security-auditor",
+  "name": "container-posture",
   "owner": {
     "name": "Joshua Jebaraj",
     "url": "https://github.com/JOSHUAJEBARAJ"
   },
   "metadata": {
-    "version": "1.0.0",
-    "description": "Claude Code plugin for auditing Dockerfiles and Kubernetes manifests for security misconfigurations"
+    "version": "1.1.0",
+    "description": "Claude Code plugin for checking the security posture of Dockerfiles and Kubernetes manifests"
   },
   "plugins": [
     {
-      "name": "container-security-auditor",
-      "version": "1.0.0",
-      "description": "Audits Dockerfiles and Kubernetes manifests for security misconfigurations including privileged containers, missing security contexts, exposed secrets, insecure RBAC, and missing seccomp/AppArmor profiles.",
+      "name": "container-posture",
+      "version": "1.1.0",
+      "description": "Checks the security posture of Dockerfiles and Kubernetes manifests for misconfigurations including privileged containers, missing security contexts, exposed secrets, insecure RBAC, and missing seccomp/AppArmor profiles.",
       "author": {
         "name": "Joshua Jebaraj",
         "url": "https://github.com/JOSHUAJEBARAJ"

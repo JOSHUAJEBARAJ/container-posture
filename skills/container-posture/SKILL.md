@@ -1,5 +1,5 @@
 ---
-name: container-security-auditor
+name: container-posture
 description: "Audits Dockerfiles and Kubernetes manifests for security misconfigurations. Use when reviewing container images, pod specs, RBAC policies, or Kubernetes deployment files for vulnerabilities like privileged containers, exposed secrets, missing security contexts, and insecure RBAC."
 allowed-tools:
   - Read

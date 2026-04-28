@@ -1,6 +1,6 @@
 ---
-name: container-audit
-description: Audit a Dockerfile or Kubernetes manifest for security misconfigurations
+name: posture-check
+description: Check security posture of Dockerfiles and Kubernetes manifests for misconfigurations
 argument-hint: "<path-to-file-or-directory>"
 allowed-tools:
   - Read
@@ -9,7 +9,7 @@ allowed-tools:
   - Bash
 ---
 
-# Container Security Audit
+# Container Posture Check
 
 **Target:** $ARGUMENTS
 
@@ -18,4 +18,4 @@ Parse the argument:
 - If a directory path is given, discover all `Dockerfile*`, `*.yaml`, and `*.yml` files within it.
 - If no argument is given, discover from the current working directory.
 
-Then invoke the `container-security-auditor` skill to perform the full audit workflow and produce a structured findings report.
+Then invoke the `container-posture` skill to perform the full audit workflow and produce a structured findings report.

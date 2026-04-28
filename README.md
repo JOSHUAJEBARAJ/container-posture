@@ -1,6 +1,6 @@
-# Container Security Auditor
+# container-posture
 
-A Claude Code plugin that audits **Dockerfiles** and **Kubernetes manifests** for security misconfigurations — no external tools required.
+A Claude Code plugin that checks the security posture of **Dockerfiles** and **Kubernetes manifests** for misconfigurations — no external tools required.
 
 ## What It Detects
 
@@ -43,25 +43,34 @@ A Claude Code plugin that audits **Dockerfiles** and **Kubernetes manifests** fo
 
 ## Installation
 
-### From a local clone
+### From GitHub
 ```
-cd /path/to/parent-dir
-/plugin marketplace add ./container-security-auditor
+/plugin marketplace add JOSHUAJEBARAJ/container-posture
 ```
 
-### Usage
+### Local (for testing)
+Navigate to the **parent directory** of this repo, then:
+```
+/plugin marketplace add ./container-posture
+```
 
-The skill activates automatically when Claude detects Dockerfiles or Kubernetes YAML files in the conversation. You can also invoke it directly:
+## Usage
+
+The skill activates automatically when Claude detects Dockerfiles or Kubernetes YAML files. You can also invoke it directly:
 
 ```
-Audit the Kubernetes manifests in ./k8s/ for security issues
+Check the security posture of the Kubernetes manifests in ./k8s/
+```
+```
+Audit this Dockerfile for security issues
 ```
 
 Or use the slash command:
 
 ```
-/container-audit ./k8s/deployment.yaml
-/container-audit ./deploy/
+/posture-check ./k8s/deployment.yaml
+/posture-check ./deploy/
+/posture-check .
 ```
 
 ## Example Output
@@ -71,55 +80,65 @@ Finding: Privileged Container
 Severity: CRITICAL
 File: k8s/deployment.yaml:34
 Issue: securityContext.privileged is set to true
-Risk: Container has full access to host kernel — equivalent to root on the node.
+Risk: Container has full host kernel access — equivalent to root on the node.
       An attacker who compromises the app can escape to the host and pivot
       across the cluster.
-Fix:  Remove privileged: true. If a capability is needed, add only the specific
-      capability via securityContext.capabilities.add.
+Fix:  Remove privileged: true. Grant only the specific capability needed.
 
----
+Finding: Missing Seccomp Profile
+Severity: HIGH
+File: k8s/deployment.yaml
+Issue: No seccompProfile defined — all syscalls permitted
+Fix:  Add to securityContext:
+        seccompProfile:
+          type: RuntimeDefault
 
 Finding: Root User in Dockerfile
 Severity: HIGH
 File: Dockerfile:12
 Issue: No USER instruction — image runs as UID 0 (root)
-Risk:  Process breakout from the container grants root on the host if combined
-       with hostPath mounts or a privileged context.
-Fix:   Add before CMD/ENTRYPOINT:
-         RUN addgroup --system app && adduser --system --ingroup app app
-         USER app
+Fix:  Add before CMD/ENTRYPOINT:
+        RUN groupadd -r appuser && useradd -r -g appuser appuser
+        USER appuser
 ```
 
 ## How It Works
 
 This plugin uses only Claude's built-in `Read`, `Grep`, and `Glob` tools — no external scanners, no network calls, no install dependencies. Claude reads the files directly and applies the checklists in the `references/` directory.
 
-This means it works:
-- Offline
-- In any CI environment
-- Without installing Trivy, kubeaudit, or any other tool
+Works offline, in any CI environment, without installing Trivy, kubeaudit, or any other tool.
 
 ## Plugin Structure
 
 ```
-container-security-auditor/
+container-posture/
   .claude-plugin/
-    plugin.json                          # Plugin metadata
+    plugin.json                 # Plugin metadata
+    marketplace.json            # Marketplace descriptor
   skills/
-    container-security-auditor/
-      SKILL.md                           # Skill entry point + workflow
+    container-posture/
+      SKILL.md                  # Skill entry point + workflow
       references/
-        dockerfile.md                    # Dockerfile-specific checks
-        pod-security.md                  # Pod/container securityContext checks
-        rbac.md                          # RBAC misconfiguration patterns
+        dockerfile.md           # Dockerfile-specific checks
+        pod-security.md         # Pod/container securityContext checks
+        rbac.md                 # RBAC misconfiguration patterns
   commands/
-    container-audit.md                   # /container-audit slash command
+    posture-check.md            # /posture-check slash command
   README.md
 ```
 
+## References
+
+The checks in this plugin are sourced from:
+
+- [OWASP Docker Security Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Docker_Security_Cheat_Sheet.html) — Dockerfile rules
+- [kubesec](https://github.com/controlplaneio/kubesec) — Kubernetes manifest scoring rules (seccomp, AppArmor, hostAliases, hostUsers, capabilities)
+- [Kubernetes Pod Security Standards](https://kubernetes.io/docs/concepts/security/pod-security-standards/) — privileged, hostPID, hostNetwork, securityContext baselines
+- [RBAC Best Practices — Kubernetes Docs](https://kubernetes.io/docs/concepts/security/rbac-good-practices/) — least-privilege RBAC patterns
+
 ## Author
 
-Built by [Joshua Jebaraj](https://github.com/JOSHUAJEBARAJ) as a Claude Code plugin for container security auditing.
+Built by [Joshua Jebaraj](https://github.com/JOSHUAJEBARAJ) as a Claude Code plugin for container security posture review.
 
 ## License
 
