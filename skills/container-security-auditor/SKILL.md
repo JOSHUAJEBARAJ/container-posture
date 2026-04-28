@@ -1,6 +1,6 @@
 ---
 name: container-security-auditor
-description: "Audits Dockerfiles and Kubernetes manifests for security misconfigurations. Use when reviewing container images, pod specs, RBAC policies, or Kubernetes deployment files for vulnerabilities like privileged containers, exposed secrets, missing security contexts, insecure RBAC, and absent network policies."
+description: "Audits Dockerfiles and Kubernetes manifests for security misconfigurations. Use when reviewing container images, pod specs, RBAC policies, or Kubernetes deployment files for vulnerabilities like privileged containers, exposed secrets, missing security contexts, and insecure RBAC."
 allowed-tools:
   - Read
   - Grep
@@ -15,7 +15,7 @@ Systematically audit Dockerfiles and Kubernetes manifests for security misconfig
 ## When to Use
 
 - Reviewing a `Dockerfile` or `docker-compose.yml` before building an image
-- Auditing Kubernetes manifests (`Deployment`, `Pod`, `ServiceAccount`, `ClusterRoleBinding`, `NetworkPolicy`)
+- Auditing Kubernetes manifests (`Deployment`, `Pod`, `ServiceAccount`, `ClusterRoleBinding`)
 - Pre-deployment security checks on Helm charts or raw YAML
 - Security reviews of CI/CD pipelines that build and deploy containers
 - Any time a user mentions "k8s", "kubectl", "pod spec", "container image", or "Dockerfile"
@@ -31,7 +31,6 @@ Systematically audit Dockerfiles and Kubernetes manifests for security misconfig
 
 - **"It's only used in development"** → Dev misconfigs reach prod when templates are copy-pasted. Flag it.
 - **"We override it in the values file"** → Verify the override actually exists before downgrading severity.
-- **"The container doesn't need network isolation"** → Absence of NetworkPolicy means any compromised pod can reach all others. That's a finding.
 - **"root is needed for this workload"** → Almost never true. Document why before accepting.
 - **"We'll add resource limits later"** → Missing limits is a DoS vector today.
 
@@ -63,8 +62,6 @@ Route based on file type:
 - `Dockerfile*` → [Dockerfile Checklist](references/dockerfile.md)
 - `kind: Pod / Deployment / DaemonSet / StatefulSet` → [Pod Security Checklist](references/pod-security.md)
 - `kind: ClusterRole / Role / ClusterRoleBinding / RoleBinding` → [RBAC Checklist](references/rbac.md)
-- `kind: NetworkPolicy` → treat as present; check for gaps
-- No `NetworkPolicy` at all → flag as missing
 
 ### Step 3: VERIFY — Confirm each finding is real
 
@@ -94,7 +91,7 @@ Fix: <concrete remediation>
 |---|---|
 | CRITICAL | `privileged: true`, root container with hostPath write, secrets in ENV, `cluster-admin` wildcard binding |
 | HIGH | Missing `runAsNonRoot`, `hostPID/hostNetwork: true`, no resource limits on public-facing pods |
-| MEDIUM | `latest` image tag, missing `readOnlyRootFilesystem`, no NetworkPolicy, image not pinned by digest |
+| MEDIUM | `latest` image tag, missing `readOnlyRootFilesystem`, image not pinned by digest |
 | LOW | Missing `allowPrivilegeEscalation: false`, no liveness/readiness probe, verbose logging in prod |
 
 ---
@@ -104,4 +101,3 @@ Fix: <concrete remediation>
 - [Dockerfile Security Checklist](references/dockerfile.md)
 - [Pod & Container Security Checklist](references/pod-security.md)
 - [RBAC Misconfiguration Patterns](references/rbac.md)
-- [Network Policy Gaps](references/network-policy.md)

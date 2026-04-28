@@ -36,14 +36,6 @@ A Claude Code plugin that audits **Dockerfiles** and **Kubernetes manifests** fo
 | Role escalation permissions | CRITICAL |
 | Default service account with token | MEDIUM |
 
-### Network Policy
-| Check | Severity |
-|---|---|
-| No `NetworkPolicy` in namespace | HIGH |
-| Missing default-deny baseline | HIGH |
-| Open egress (SSRF to metadata API) | CRITICAL |
-| Unrestricted ingress (`namespaceSelector: {}`) | HIGH |
-
 ## Installation
 
 ### From a local clone
@@ -115,7 +107,6 @@ container-security-auditor/
         dockerfile.md                    # Dockerfile-specific checks
         pod-security.md                  # Pod/container securityContext checks
         rbac.md                          # RBAC misconfiguration patterns
-        network-policy.md                # NetworkPolicy gap analysis
   commands/
     container-audit.md                   # /container-audit slash command
   README.md
