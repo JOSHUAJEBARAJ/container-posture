@@ -1,6 +1,6 @@
 # Dockerfile Security Checklist
 
-Apply these checks to every `Dockerfile` found during discovery. Flag only security issues — skip performance or style observations.
+Apply these checks to `Dockerfile` instructions only. Runtime flags, Kubernetes securityContext, and compose settings are covered in `pod-security.md`.
 
 Source: [OWASP Docker Security Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Docker_Security_Cheat_Sheet.html)
 
@@ -15,14 +15,14 @@ Source: [OWASP Docker Security Cheat Sheet](https://cheatsheetseries.owasp.org/c
 FROM ubuntu:latest
 FROM node:latest
 
-# BETTER — version tag (still mutable, but intentional)
+# BETTER — explicit version tag
 FROM node:20-alpine
 
-# BEST — immutable, digest-pinned; cannot be tampered with
+# BEST — digest-pinned, immutable
 FROM node:20-alpine@sha256:abc123...
 ```
 
-An unpinned image means a supply-chain compromise of the upstream image silently reaches your production container.
+An unpinned image means a supply-chain compromise of the upstream image silently reaches your production container on the next build.
 
 Grep: `^FROM .*:latest`, `^FROM [^:@\s]+\s*$` (no tag at all)
 
@@ -30,48 +30,48 @@ Severity: MEDIUM
 
 ---
 
-## 2. Running as Root (Missing USER Instruction)
+## 2. Missing USER Instruction (Runs as Root)
 
-**Check:** Is there a `USER` instruction before `CMD`/`ENTRYPOINT`? Absence means UID 0 (root).
+**Check:** Is there a `USER` instruction before `CMD`/`ENTRYPOINT`? Absence means the container runs as UID 0 (root).
 
 ```dockerfile
-# BAD — no USER = root
+# BAD — no USER = runs as root inside the container
 FROM ubuntu:22.04
 RUN apt-get install -y curl
 CMD ["curl"]
 
-# GOOD — create a dedicated non-root user and switch to it
+# GOOD — create and switch to a non-root user
 RUN groupadd -r appuser && useradd -r -g appuser appuser
 USER appuser
 ```
 
-Running as root means any process breakout gives the attacker full host access when combined with hostPath mounts or a privileged context.
+Running as root means any code execution vulnerability inside the container gives the attacker root-level file system access.
 
-Grep: absence of `^USER` in the file, or `^USER root`, `^USER 0`
+Grep: absence of `^USER` in the file, or explicitly `^USER root` / `^USER 0`
 
-Severity: HIGH (CRITICAL if combined with `hostPath` or `privileged: true`)
+Severity: HIGH
 
 ---
 
 ## 3. Secrets Baked into Image Layers
 
-**Check:** Are secrets stored in `ENV`, `ARG`, or copied via `COPY`/`ADD`? Every layer is permanently stored and readable via `docker history`.
+**Check:** Are secrets stored in `ENV` or `ARG` instructions, or copied in via `COPY`? Every layer is permanently stored and visible via `docker history`.
 
 ```dockerfile
-# CRITICAL — visible to anyone with image access
+# CRITICAL — stored in image history, readable by anyone with image access
 ENV AWS_SECRET_ACCESS_KEY=AKIAIOSFODNN7EXAMPLE
 ARG DB_PASSWORD=supersecret
 RUN curl -H "Authorization: Bearer hardcoded-token" https://api.example.com
 
-# BAD — .env file embedded in the image
+# BAD — .env file embedded into the image
 COPY .env /app/.env
 
-# GOOD — use Docker Secrets (swarm) or BuildKit secret mounts
+# GOOD — use BuildKit secret mounts; never stored in any layer
 RUN --mount=type=secret,id=db_password \
     DB_PASSWORD=$(cat /run/secrets/db_password) ./configure.sh
 ```
 
-Even if the `ENV` is overridden at runtime, the value is permanently recorded in the image layer history.
+Even if the value is overridden at runtime, it remains permanently recorded in the image layer history.
 
 Grep:
 - `ENV.*(PASSWORD|SECRET|TOKEN|KEY|API_KEY)`
@@ -82,63 +82,64 @@ Severity: CRITICAL
 
 ---
 
-## 4. Docker Socket Exposed Inside the Container
+## 4. Docker Socket Declared as VOLUME
 
-**Check:** Is `/var/run/docker.sock` mounted into the container from the Dockerfile or referenced in a `VOLUME` instruction?
+**Check:** Is `/var/run/docker.sock` declared in a `VOLUME` instruction?
 
 ```dockerfile
-# BAD — mounting the Docker socket gives the container full root control of the host
+# BAD — signals intent to mount the Docker daemon socket
 VOLUME /var/run/docker.sock
 ```
 
-Also flag in `docker-compose.yml`:
-```yaml
-volumes:
-  - "/var/run/docker.sock:/var/run/docker.sock"
-```
+Access to the Docker socket is equivalent to unrestricted root on the host. A container with socket access can create privileged containers that mount the host filesystem.
 
-Access to the Docker socket is equivalent to unrestricted root on the host. An attacker inside the container can create a privileged container that mounts the host filesystem.
-
-Grep: `docker.sock`
+Grep: `docker\.sock`
 
 Severity: CRITICAL
 
 ---
 
-## 5. ADD Used Instead of COPY (Remote URL Fetch)
+## 5. ADD with Remote URL
 
-**Check:** Is `ADD` used with a remote URL or in contexts where `COPY` would suffice?
+**Check:** Is `ADD` used to fetch content from a remote URL?
 
 ```dockerfile
-# BAD — ADD silently fetches and decompresses remote content; no integrity check
+# BAD — unauthenticated remote fetch with no integrity check
 ADD https://example.com/install.sh /tmp/install.sh
 RUN sh /tmp/install.sh
 
-# GOOD — fetch explicitly with checksum verification, then COPY
-# Or use COPY for local files
+# GOOD — use COPY for local files
 COPY app/ /app/
+
+# GOOD — if remote fetch is needed, verify checksum explicitly
+RUN curl -fsSL https://example.com/install.sh -o /tmp/install.sh && \
+    echo "expected-sha256  /tmp/install.sh" | sha256sum -c && \
+    sh /tmp/install.sh
 ```
 
-`ADD` with a URL performs an unauthenticated fetch with no integrity guarantee — a compromised upstream URL leads to code execution at build time.
+A compromised upstream URL leads to arbitrary code execution at build time with no warning.
 
 Grep: `^ADD https?://`
 
-Severity: HIGH for remote URLs, MEDIUM for local archive extraction.
+Severity: HIGH
 
 ---
 
-## 6. Privileged Operations in RUN Steps
+## 6. Privileged Instructions in RUN Steps
 
-**Check:** Do any `RUN` instructions invoke `sudo` or set broad file permissions?
+**Check:** Do any `RUN` instructions invoke `sudo` or set world-writable permissions?
 
 ```dockerfile
-# BAD — escalates to root during build; permissions may persist at runtime
-RUN sudo chmod 777 /etc/passwd
-RUN sudo apt-get install -y ...
+# BAD — sudo inside RUN implies the build requires or assumes root
+RUN sudo apt-get install -y curl
+RUN sudo chmod 777 /app
+
+# BAD — world-writable paths are exploitable at runtime
 RUN chmod -R 777 /app
+RUN chmod 666 /etc/passwd
 ```
 
-`sudo` in a `RUN` step means the build requires or assumes root, and broad `chmod 777` grants world-write access to sensitive paths.
+`sudo` in a `RUN` step means the build assumes root access. World-writable paths (`777`) allow any process inside the container to overwrite application files.
 
 Grep: `RUN.*sudo`, `chmod.*777`, `chmod.*666`
 
@@ -151,125 +152,44 @@ Severity: HIGH
 **Check:** Are management, debug, or unauthenticated service ports declared in `EXPOSE`?
 
 ```dockerfile
-EXPOSE 22    # SSH — remote shell access
-EXPOSE 2375  # Docker daemon — unauthenticated API, full host control
-EXPOSE 2376  # Docker daemon TLS — still a high-value target
+EXPOSE 22    # SSH — remote shell
+EXPOSE 2375  # Docker daemon — unauthenticated, full host control
+EXPOSE 2376  # Docker daemon TLS — high-value target
+EXPOSE 3389  # RDP
 EXPOSE 4040  # Spark UI — no auth by default
 ```
 
-`EXPOSE` is documentation but signals intent. Flag ports that provide privileged or unauthenticated access.
+`EXPOSE` documents intended port bindings. Flagging these ensures exposed management surfaces are intentional and reviewed.
 
 Grep: `^EXPOSE (22|23|2375|2376|3389|4040)\b`
 
-Severity: CRITICAL for `2375`/`2376` (Docker daemon), HIGH for `22` (SSH), MEDIUM for others.
+Severity: CRITICAL for `2375`/`2376`, HIGH for `22`/`3389`, MEDIUM for others.
 
 ---
 
 ## 8. Multi-Stage Build Secret Leakage
 
-**Check:** In multi-stage builds, are credentials or keys copied from the build stage into the final image?
+**Check:** In multi-stage builds, are private keys or credentials copied from the build stage into the final image?
 
 ```dockerfile
-# BAD — SSH key ends up in the final image layer
+# BAD — SSH key ends up in the final image
 FROM builder AS build
 COPY id_rsa /root/.ssh/id_rsa
 RUN git clone git@github.com:org/private-repo.git
 
 FROM final
-COPY --from=build /root/.ssh/id_rsa /root/.ssh/id_rsa  # leaked into final image!
+COPY --from=build /root/.ssh/id_rsa /root/.ssh/id_rsa  # leaked!
 
-# GOOD — use BuildKit SSH forwarding; key never touches the filesystem
+# GOOD — BuildKit SSH forwarding; key never written to the filesystem
 RUN --mount=type=ssh git clone git@github.com:org/private-repo.git
 
-# GOOD — use BuildKit secret mounts; secret is not stored in any layer
-RUN --mount=type=secret,id=mysecret ./build.sh
+# GOOD — BuildKit secret mount; not stored in any layer
+RUN --mount=type=secret,id=mysecret ./build-with-secret.sh
 ```
 
-Grep: `COPY --from=.*ssh\|id_rsa\|\.pem\|\.key\|credentials`
+Grep: `COPY --from=.*(id_rsa|\.pem|\.key|credentials|\.ssh)`
 
 Severity: CRITICAL
-
----
-
-## 9. No-New-Privileges Not Enforced
-
-**Check:** Is `--security-opt=no-new-privileges` absent from runtime instructions or `docker-compose.yml`?
-
-```yaml
-# BAD — container processes can gain new privileges via setuid/setgid binaries
-services:
-  app:
-    image: myapp
-
-# GOOD
-services:
-  app:
-    image: myapp
-    security_opt:
-      - no-new-privileges:true
-```
-
-Without this, a setuid binary inside the container (e.g., `sudo`, `pkexec`) can escalate a low-privilege process to root.
-
-Grep in compose files: absence of `no-new-privileges`
-
-Severity: HIGH
-
----
-
-## 10. Capabilities Not Dropped
-
-**Check:** Does the Dockerfile or compose file add broad capabilities or fail to drop defaults?
-
-```yaml
-# CRITICAL — adds every Linux kernel capability; equivalent to running as root on the host
-cap_add:
-  - ALL
-
-# HIGH — SYS_ADMIN is nearly equivalent to root
-cap_add:
-  - SYS_ADMIN
-
-# GOOD — drop all, add only what the workload specifically requires
-cap_drop:
-  - ALL
-cap_add:
-  - CHOWN
-  - NET_BIND_SERVICE
-```
-
-Default Docker capabilities already include dangerous ones (`DAC_OVERRIDE`, `NET_RAW`, `SYS_CHROOT`). Always drop all and add back only what is necessary.
-
-Grep: `cap_add:.*ALL`, `CAP_SYS_ADMIN`, `CAP_NET_ADMIN`
-
-Severity: CRITICAL for `ALL`/`SYS_ADMIN`, HIGH for other dangerous caps.
-
----
-
-## 11. Read-Only Filesystem Not Set
-
-**Check:** Is `--read-only` / `read_only: true` absent for containers that don't need a writable root filesystem?
-
-```yaml
-# BAD — attacker who achieves code execution can write malware, modify configs
-services:
-  app:
-    image: myapp
-
-# GOOD — root filesystem is immutable; writable paths are explicit tmpfs mounts
-services:
-  app:
-    image: myapp
-    read_only: true
-    tmpfs:
-      - /tmp
-```
-
-A writable root filesystem allows an attacker with code execution to persist payloads, modify application binaries, and exfiltrate data.
-
-Grep in compose files: absence of `read_only: true`
-
-Severity: MEDIUM
 
 ---
 
@@ -280,8 +200,8 @@ Severity: MEDIUM
 grep -n "^FROM.*:latest" Dockerfile
 grep -nE "^FROM [^:@[:space:]]+[[:space:]]*$" Dockerfile
 
-# Root user
-grep -n "^USER" Dockerfile              # absence = root
+# Missing USER (root)
+grep -n "^USER" Dockerfile                          # absence = root
 
 # Secrets in layers
 grep -nEi "ENV.*(PASSWORD|SECRET|TOKEN|KEY|API)" Dockerfile
@@ -289,20 +209,17 @@ grep -nEi "ARG.*(PASSWORD|SECRET|TOKEN|KEY)" Dockerfile
 grep -n "COPY.*\.env" Dockerfile
 
 # Docker socket
-grep -rn "docker.sock" .
+grep -n "docker\.sock" Dockerfile
 
 # Remote ADD
 grep -nE "^ADD https?://" Dockerfile
 
-# Privileged steps
-grep -n "sudo\|chmod.*777\|chmod.*666" Dockerfile
+# Privileged RUN steps
+grep -nE "RUN.*sudo|chmod.*(777|666)" Dockerfile
 
 # Sensitive ports
 grep -nE "^EXPOSE (22|2375|2376|3389|4040)" Dockerfile
 
 # Multi-stage secret leakage
 grep -nE "COPY --from=.*(id_rsa|\.pem|\.key|credentials|\.ssh)" Dockerfile
-
-# Capabilities (compose)
-grep -n "cap_add\|CAP_SYS_ADMIN\|CAP_NET_ADMIN" docker-compose*.yml
 ```
