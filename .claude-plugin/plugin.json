@@ -1,0 +1,9 @@
+{
+  "name": "container-security-auditor",
+  "version": "1.0.0",
+  "description": "Audits Dockerfiles and Kubernetes manifests for security misconfigurations including privileged containers, missing security contexts, exposed secrets, insecure RBAC, and network policy gaps.",
+  "author": {
+    "name": "Joshua Jebaraj",
+    "url": "https://github.com/JOSHUAJEBARAJ"
+  }
+}
