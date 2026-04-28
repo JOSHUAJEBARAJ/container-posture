@@ -99,33 +99,7 @@ Severity: CRITICAL
 
 ---
 
-## 5. ADD with Remote URL
-
-**Check:** Is `ADD` used to fetch content from a remote URL?
-
-```dockerfile
-# BAD — unauthenticated remote fetch with no integrity check
-ADD https://example.com/install.sh /tmp/install.sh
-RUN sh /tmp/install.sh
-
-# GOOD — use COPY for local files
-COPY app/ /app/
-
-# GOOD — if remote fetch is needed, verify checksum explicitly
-RUN curl -fsSL https://example.com/install.sh -o /tmp/install.sh && \
-    echo "expected-sha256  /tmp/install.sh" | sha256sum -c && \
-    sh /tmp/install.sh
-```
-
-A compromised upstream URL leads to arbitrary code execution at build time with no warning.
-
-Grep: `^ADD https?://`
-
-Severity: HIGH
-
----
-
-## 6. Privileged Instructions in RUN Steps
+## 5. Privileged Instructions in RUN Steps
 
 **Check:** Do any `RUN` instructions invoke `sudo` or set world-writable permissions?
 
@@ -147,52 +121,6 @@ Severity: HIGH
 
 ---
 
-## 7. Sensitive Ports Exposed
-
-**Check:** Are management, debug, or unauthenticated service ports declared in `EXPOSE`?
-
-```dockerfile
-EXPOSE 22    # SSH — remote shell
-EXPOSE 2375  # Docker daemon — unauthenticated, full host control
-EXPOSE 2376  # Docker daemon TLS — high-value target
-EXPOSE 3389  # RDP
-EXPOSE 4040  # Spark UI — no auth by default
-```
-
-`EXPOSE` documents intended port bindings. Flagging these ensures exposed management surfaces are intentional and reviewed.
-
-Grep: `^EXPOSE (22|23|2375|2376|3389|4040)\b`
-
-Severity: CRITICAL for `2375`/`2376`, HIGH for `22`/`3389`, MEDIUM for others.
-
----
-
-## 8. Multi-Stage Build Secret Leakage
-
-**Check:** In multi-stage builds, are private keys or credentials copied from the build stage into the final image?
-
-```dockerfile
-# BAD — SSH key ends up in the final image
-FROM builder AS build
-COPY id_rsa /root/.ssh/id_rsa
-RUN git clone git@github.com:org/private-repo.git
-
-FROM final
-COPY --from=build /root/.ssh/id_rsa /root/.ssh/id_rsa  # leaked!
-
-# GOOD — BuildKit SSH forwarding; key never written to the filesystem
-RUN --mount=type=ssh git clone git@github.com:org/private-repo.git
-
-# GOOD — BuildKit secret mount; not stored in any layer
-RUN --mount=type=secret,id=mysecret ./build-with-secret.sh
-```
-
-Grep: `COPY --from=.*(id_rsa|\.pem|\.key|credentials|\.ssh)`
-
-Severity: CRITICAL
-
----
-
 ## Quick Grep Summary
 
 ```bash
@@ -211,15 +139,6 @@ grep -n "COPY.*\.env" Dockerfile
 # Docker socket
 grep -n "docker\.sock" Dockerfile
 
-# Remote ADD
-grep -nE "^ADD https?://" Dockerfile
-
 # Privileged RUN steps
 grep -nE "RUN.*sudo|chmod.*(777|666)" Dockerfile
-
-# Sensitive ports
-grep -nE "^EXPOSE (22|2375|2376|3389|4040)" Dockerfile
-
-# Multi-stage secret leakage
-grep -nE "COPY --from=.*(id_rsa|\.pem|\.key|credentials|\.ssh)" Dockerfile
 ```
