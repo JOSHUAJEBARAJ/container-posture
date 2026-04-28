@@ -1,0 +1,9 @@
+{
+  "name": "container-posture",
+  "version": "1.1.0",
+  "description": "Checks the security posture of Dockerfiles and Kubernetes manifests for misconfigurations including privileged containers, missing security contexts, exposed secrets, insecure RBAC, and missing seccomp/AppArmor profiles.",
+  "author": {
+    "name": "Joshua Jebaraj",
+    "url": "https://github.com/JOSHUAJEBARAJ"
+  }
+}

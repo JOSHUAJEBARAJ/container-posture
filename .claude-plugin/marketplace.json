@@ -17,7 +17,7 @@
         "name": "Joshua Jebaraj",
         "url": "https://github.com/JOSHUAJEBARAJ"
       },
-      "source": "."
+      "source": "./plugins/container-posture"
     }
   ]
 }
