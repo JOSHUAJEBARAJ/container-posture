@@ -276,6 +276,10 @@ grep -n "allowPrivilegeEscalation: true" manifest.yaml
 grep -nE "image:.*:latest" manifest.yaml
 grep -nE 'add: \["ALL"\]' manifest.yaml
 grep -n "automountServiceAccountToken" manifest.yaml
+grep -n "seccompProfile" manifest.yaml         # absence or Unconfined
+grep -n "appArmorProfile" manifest.yaml        # absence or Unconfined
+grep -n "hostAliases:" manifest.yaml
+grep -n "hostUsers:" manifest.yaml             # absence of hostUsers: false
 ```
 
 ---
@@ -303,3 +307,112 @@ The default ServiceAccount token is auto-mounted into every pod at `/var/run/sec
 Grep: absence of `serviceAccountName`, `automountServiceAccountToken: true` without justification
 
 Severity: MEDIUM — escalates to HIGH if the default SA has been granted any RBAC permissions.
+
+---
+
+## 13. Seccomp Profile Missing or Unconfined
+
+**Check:** Is a seccomp profile set, and is it something other than `Unconfined`?
+
+```yaml
+# BAD — no seccomp profile means all syscalls are permitted
+spec:
+  containers:
+    - name: app
+      image: myapp:1.0
+      # no seccompProfile set
+
+# BAD — explicitly disables seccomp filtering
+securityContext:
+  seccompProfile:
+    type: Unconfined
+
+# GOOD — restricts syscalls to the runtime default allowlist
+securityContext:
+  seccompProfile:
+    type: RuntimeDefault
+```
+
+Without a seccomp profile every syscall is available to the container. An attacker with code execution can invoke dangerous syscalls (`ptrace`, `mount`, `kexec_load`) to escalate privileges or escape the container.
+
+Grep: absence of `seccompProfile`, `seccompProfile:.*Unconfined`
+
+Severity: HIGH for missing/Unconfined on security-sensitive workloads.
+
+---
+
+## 14. AppArmor Profile Missing or Unconfined
+
+**Check:** Is an AppArmor profile set, and is it something other than `Unconfined`?
+
+```yaml
+# BAD — no AppArmor profile, no mandatory access control on file/network operations
+spec:
+  containers:
+    - name: app
+      image: myapp:1.0
+      # no appArmorProfile set
+
+# BAD — explicitly disables AppArmor
+securityContext:
+  appArmorProfile:
+    type: Unconfined
+
+# GOOD — enforces the runtime default AppArmor profile
+securityContext:
+  appArmorProfile:
+    type: RuntimeDefault
+```
+
+AppArmor restricts what files, capabilities, and network operations a container process can perform — even if it runs as root. Without it, a compromised container has no mandatory access control boundary beyond namespace isolation.
+
+Grep: absence of `appArmorProfile`, `appArmorProfile:.*Unconfined`
+
+Severity: MEDIUM
+
+---
+
+## 15. hostAliases Set
+
+**Check:** Does the pod spec define `hostAliases`?
+
+```yaml
+# BAD — overrides /etc/hosts inside the pod; can redirect DNS resolution
+spec:
+  hostAliases:
+    - ip: "1.2.3.4"
+      hostnames:
+        - "legit-service.internal"
+```
+
+`hostAliases` injects entries into the pod's `/etc/hosts`, allowing a misconfigured or malicious manifest to redirect internal hostnames to attacker-controlled IPs. In a shared cluster this is a lateral movement enabler.
+
+Grep: `hostAliases:`
+
+Severity: MEDIUM — review every occurrence; flag if the redirected hostname is a sensitive internal service.
+
+---
+
+## 16. hostUsers Not Set to False
+
+**Check:** Is `hostUsers: false` set to enable user namespace isolation?
+
+```yaml
+# BAD (default) — pod shares the host user namespace; root in the container is
+# root on the host node if other controls fail
+spec:
+  hostUsers: true   # or field absent, which defaults to true
+
+# GOOD — Kubernetes creates a separate user namespace; UID 0 inside the container
+# maps to an unprivileged UID on the host
+spec:
+  hostUsers: false
+```
+
+User namespace isolation means that even if an attacker escapes the container and runs as UID 0, that UID maps to an unprivileged user on the host, dramatically reducing the blast radius of a container escape.
+
+Grep: absence of `hostUsers: false`
+
+Note: `hostUsers` requires Kubernetes ≥ 1.25 and a compatible container runtime. Verify cluster support before flagging as mandatory.
+
+Severity: MEDIUM
