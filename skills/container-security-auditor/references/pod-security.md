@@ -275,4 +275,31 @@ grep -n "runAsUser: 0" manifest.yaml
 grep -n "allowPrivilegeEscalation: true" manifest.yaml
 grep -nE "image:.*:latest" manifest.yaml
 grep -nE 'add: \["ALL"\]' manifest.yaml
+grep -n "automountServiceAccountToken" manifest.yaml
 ```
+
+---
+
+## 12. Default ServiceAccount Usage
+
+**Check:** Is a dedicated `serviceAccountName` set on the pod, and is `automountServiceAccountToken` disabled when API access is not needed?
+
+```yaml
+# BAD — pod uses the namespace default SA, which may have accumulated permissions
+spec:
+  containers:
+    - name: app
+      image: myapp:1.0
+  # no serviceAccountName set
+
+# GOOD — dedicated SA scoped to only what the workload needs
+spec:
+  serviceAccountName: myapp-sa
+  automountServiceAccountToken: false  # disable if the pod doesn't call the k8s API
+```
+
+The default ServiceAccount token is auto-mounted into every pod at `/var/run/secrets/kubernetes.io/serviceaccount/token`. If the default SA has accumulated permissions, any compromised pod can use that token to interact with the API server.
+
+Grep: absence of `serviceAccountName`, `automountServiceAccountToken: true` without justification
+
+Severity: MEDIUM — escalates to HIGH if the default SA has been granted any RBAC permissions.

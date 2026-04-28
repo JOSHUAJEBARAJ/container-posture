@@ -129,53 +129,6 @@ Severity: CRITICAL
 
 ---
 
-## 6. Default ServiceAccount Usage
-
-**Check:** Is the default `ServiceAccount` being used (no explicit SA set)?
-
-```yaml
-# BAD — pod uses the namespace default SA, which may have accumulated permissions
-spec:
-  containers:
-    - name: app
-      image: myapp:1.0
-  # no serviceAccountName set
-
-# GOOD — dedicated SA with no permissions beyond what's needed
-spec:
-  serviceAccountName: myapp-sa
-  automountServiceAccountToken: false  # if the app doesn't call the API
-```
-
-Also check for `automountServiceAccountToken: true` on service accounts that don't need API access.
-
-Severity: MEDIUM — escalates to HIGH if default SA has been granted permissions.
-
----
-
-## 7. Namespace Scope Confusion
-
-**Check:** Is a `ClusterRoleBinding` used where a `RoleBinding` would suffice?
-
-```yaml
-# Overly broad — applies to ALL namespaces
-kind: ClusterRoleBinding
-roleRef:
-  kind: ClusterRole
-  name: pod-reader
-
-# Better — scoped to one namespace
-kind: RoleBinding
-roleRef:
-  kind: Role
-  name: pod-reader
-  namespace: production
-```
-
-Severity: MEDIUM — widened blast radius if account is compromised.
-
----
-
 ## Quick Grep Summary
 
 ```bash
@@ -185,5 +138,4 @@ grep -nE 'resources: \["\*"\]' *.yaml
 grep -n "pods/exec\|pods/attach\|pods/portforward" *.yaml
 grep -n "secrets" *.yaml | grep -v "#"
 grep -nE "verbs:.*(bind|escalate)" *.yaml
-grep -n "automountServiceAccountToken" *.yaml
 ```
