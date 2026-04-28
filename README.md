@@ -10,21 +10,27 @@ A Claude Code plugin that audits **Dockerfiles** and **Kubernetes manifests** fo
 | Secrets in `ENV` / `ARG` / `COPY .env` | CRITICAL |
 | Running as root (missing `USER`) | HIGH |
 | `latest` or unpinned base image | MEDIUM |
-| `ADD` used instead of `COPY` | MEDIUM |
-| Sensitive ports exposed (`22`, `2375`) | MEDIUM |
-| Multi-stage build secret leakage | CRITICAL |
+| Docker socket declared as `VOLUME` | CRITICAL |
+| `sudo` / `chmod 777` in `RUN` steps | HIGH |
 
-### Kubernetes Manifests
+### Kubernetes Pod Security
 | Check | Severity |
 |---|---|
 | `privileged: true` | CRITICAL |
-| `hostPID` / `hostNetwork` / `hostPath` | CRITICAL / HIGH |
+| `hostPID` / `hostNetwork` / `hostIPC` | CRITICAL / HIGH |
+| `hostPath` volume mounts | CRITICAL / HIGH |
 | Missing `securityContext` | HIGH |
-| `runAsUser: 0` | HIGH |
-| Missing resource limits | HIGH |
-| Secrets mounted as env vars | MEDIUM |
-| `latest` image tag | MEDIUM |
+| `runAsUser: 0` / missing `runAsNonRoot` | HIGH |
+| Missing `allowPrivilegeEscalation: false` | HIGH |
+| Missing resource limits (CPU / memory) | HIGH |
 | Dangerous capabilities (`ALL`, `SYS_ADMIN`) | CRITICAL |
+| Seccomp profile missing or `Unconfined` | HIGH |
+| AppArmor profile missing or `Unconfined` | MEDIUM |
+| `hostAliases` set | MEDIUM |
+| `hostUsers` not set to `false` | MEDIUM |
+| Secrets mounted as env vars | MEDIUM |
+| Default service account / auto-mounted token | MEDIUM |
+| `latest` image tag | MEDIUM |
 
 ### RBAC
 | Check | Severity |
@@ -33,8 +39,7 @@ A Claude Code plugin that audits **Dockerfiles** and **Kubernetes manifests** fo
 | Wildcard `*` verbs / resources | CRITICAL |
 | `secrets` read access | HIGH |
 | `pods/exec` or `pods/attach` access | HIGH |
-| Role escalation permissions | CRITICAL |
-| Default service account with token | MEDIUM |
+| Role escalation (`bind` / `escalate` verbs) | CRITICAL |
 
 ## Installation
 
