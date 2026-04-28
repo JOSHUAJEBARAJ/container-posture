@@ -43,15 +43,29 @@ A Claude Code plugin that checks the security posture of **Dockerfiles** and **K
 
 ## Installation
 
+Requires a recent version of Claude Code. If you see `This plugin uses a source type your Claude Code version does not support`, run `claude update` (or reinstall) and retry.
+
 ### From GitHub
-```
-/plugin marketplace add JOSHUAJEBARAJ/container-posture
-```
+
+1. Add the marketplace:
+   ```
+   /plugin marketplace add JOSHUAJEBARAJ/container-posture
+   ```
+2. Install the plugin:
+   ```
+   /plugin install container-posture@container-posture
+   ```
+3. Verify:
+   ```
+   /plugin
+   ```
+   `container-posture` should appear as installed, and `/posture-check` should be available.
 
 ### Local (for testing)
-Navigate to the **parent directory** of this repo, then:
+From the **parent directory** of this repo:
 ```
 /plugin marketplace add ./container-posture
+/plugin install container-posture@container-posture
 ```
 
 ## Usage
@@ -111,19 +125,22 @@ Works offline, in any CI environment, without installing Trivy, kubeaudit, or an
 ## Plugin Structure
 
 ```
-container-posture/
+container-posture/                # Repo root (the marketplace)
   .claude-plugin/
-    plugin.json                 # Plugin metadata
-    marketplace.json            # Marketplace descriptor
-  skills/
-    container-posture/
-      SKILL.md                  # Skill entry point + workflow
-      references/
-        dockerfile.md           # Dockerfile-specific checks
-        pod-security.md         # Pod/container securityContext checks
-        rbac.md                 # RBAC misconfiguration patterns
-  commands/
-    posture-check.md            # /posture-check slash command
+    marketplace.json              # Marketplace descriptor
+  plugins/
+    container-posture/            # The plugin itself
+      .claude-plugin/
+        plugin.json               # Plugin metadata
+      skills/
+        container-posture/
+          SKILL.md                # Skill entry point + workflow
+          references/
+            dockerfile.md         # Dockerfile-specific checks
+            pod-security.md       # Pod/container securityContext checks
+            rbac.md               # RBAC misconfiguration patterns
+      commands/
+        posture-check.md          # /posture-check slash command
   README.md
 ```
 
