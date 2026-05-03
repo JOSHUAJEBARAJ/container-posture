@@ -3,3 +3,10 @@ __pycache__/
 *.pyc
 *.pyo
 .env
+
+# Demo recording assets — local only
+demo/script.md
+demo/*.cast
+demo/*.gif
+demo/*.mp4
+demo/*.mov

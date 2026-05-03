@@ -1,93 +1,58 @@
 # container-posture
 
-A Claude Code plugin that checks the security posture of **Dockerfiles** and **Kubernetes manifests** for misconfigurations — no external tools required.
+A Claude Code plugin that audits **Dockerfiles** and **Kubernetes manifests** for security misconfigurations — privileged pods, root containers, hardcoded secrets, over-permissive RBAC, and more.
 
-## What It Detects
+No external scanners. No network calls. No install dependencies. Just Claude reading your files.
 
-### Dockerfile
-| Check | Severity |
-|---|---|
-| Secrets in `ENV` / `ARG` / `COPY .env` | CRITICAL |
-| Running as root (missing `USER`) | HIGH |
-| `latest` or unpinned base image | MEDIUM |
-| Docker socket declared as `VOLUME` | CRITICAL |
-| `sudo` / `chmod 777` in `RUN` steps | HIGH |
+---
 
-### Kubernetes Pod Security
-| Check | Severity |
-|---|---|
-| `privileged: true` | CRITICAL |
-| `hostPID` / `hostNetwork` / `hostIPC` | CRITICAL / HIGH |
-| `hostPath` volume mounts | CRITICAL / HIGH |
-| Missing `securityContext` | HIGH |
-| `runAsUser: 0` / missing `runAsNonRoot` | HIGH |
-| Missing `allowPrivilegeEscalation: false` | HIGH |
-| Missing resource limits (CPU / memory) | HIGH |
-| Dangerous capabilities (`ALL`, `SYS_ADMIN`) | CRITICAL |
-| Seccomp profile missing or `Unconfined` | HIGH |
-| AppArmor profile missing or `Unconfined` | MEDIUM |
-| `hostAliases` set | MEDIUM |
-| `hostUsers` not set to `false` | MEDIUM |
-| Secrets mounted as env vars | MEDIUM |
-| Default service account / auto-mounted token | MEDIUM |
-| `latest` image tag | MEDIUM |
+## Install
 
-### RBAC
-| Check | Severity |
-|---|---|
-| `cluster-admin` bound to app service account | CRITICAL |
-| Wildcard `*` verbs / resources | CRITICAL |
-| `secrets` read access | HIGH |
-| `pods/exec` or `pods/attach` access | HIGH |
-| Role escalation (`bind` / `escalate` verbs) | CRITICAL |
+Requires a recent version of Claude Code. If you see `This plugin uses a source type your Claude Code version does not support`, run `claude update` first.
 
-## Installation
+**1. Add the marketplace:**
 
-Requires a recent version of Claude Code. If you see `This plugin uses a source type your Claude Code version does not support`, run `claude update` (or reinstall) and retry.
+```
+/plugin marketplace add JOSHUAJEBARAJ/container-posture
+```
 
-### From GitHub
+**2. Install the plugin:**
 
-1. Add the marketplace:
-   ```
-   /plugin marketplace add JOSHUAJEBARAJ/container-posture
-   ```
-2. Install the plugin:
-   ```
-   /plugin install container-posture@container-posture
-   ```
-3. Verify:
-   ```
-   /plugin
-   ```
-   `container-posture` should appear as installed, and `/posture-check` should be available.
+```
+/plugin install container-posture@container-posture
+```
 
-### Local (for testing)
+**3. Verify:** run `/plugin` — `container-posture` should appear as installed and `/posture-check` should be available.
+
+### Local install (for development)
+
 From the **parent directory** of this repo:
+
 ```
 /plugin marketplace add ./container-posture
 /plugin install container-posture@container-posture
 ```
 
-## Usage
+---
 
-The skill activates automatically when Claude detects Dockerfiles or Kubernetes YAML files. You can also invoke it directly:
+## Use
+
+The slash command is the fastest way:
+
+```
+/posture-check ./k8s/deployment.yaml     # one file
+/posture-check ./deploy/                 # a directory
+/posture-check .                         # current working directory
+```
+
+The skill also activates automatically when Claude detects Dockerfiles or Kubernetes YAML in conversation:
 
 ```
 Check the security posture of the Kubernetes manifests in ./k8s/
-```
-```
 Audit this Dockerfile for security issues
 ```
 
-Or use the slash command:
-
-```
-/posture-check ./k8s/deployment.yaml
-/posture-check ./deploy/
-/posture-check .
-```
-
-## Example Output
+### Example output
 
 ```
 Finding: Privileged Container
@@ -116,13 +81,73 @@ Fix:  Add before CMD/ENTRYPOINT:
         USER appuser
 ```
 
-## How It Works
+### Try it on the demo samples
 
-This plugin uses only Claude's built-in `Read`, `Grep`, and `Glob` tools — no external scanners, no network calls, no install dependencies. Claude reads the files directly and applies the checklists in the `references/` directory.
+The `demo/samples/` directory ships with intentionally vulnerable files you can point the plugin at:
 
-Works offline, in any CI environment, without installing Trivy, kubeaudit, or any other tool.
+```
+cd demo/samples
+claude
+/posture-check .
+```
 
-## Plugin Structure
+---
+
+## How it works
+
+The plugin uses only Claude's built-in `Read`, `Grep`, and `Glob` tools. Claude reads your files directly and applies the checklists in the `references/` directory. That means:
+
+- Works offline.
+- Runs in any CI environment that has Claude Code.
+- No Trivy, no kubeaudit, no daemons to install or update.
+
+---
+
+## What it detects
+
+### Dockerfile
+
+| Check | Severity |
+|---|---|
+| Secrets in `ENV` / `ARG` / `COPY .env` | CRITICAL |
+| Running as root (missing `USER`) | HIGH |
+| `latest` or unpinned base image | MEDIUM |
+| Docker socket declared as `VOLUME` | CRITICAL |
+| `sudo` / `chmod 777` in `RUN` steps | HIGH |
+
+### Kubernetes pod security
+
+| Check | Severity |
+|---|---|
+| `privileged: true` | CRITICAL |
+| `hostPID` / `hostNetwork` / `hostIPC` | CRITICAL / HIGH |
+| `hostPath` volume mounts | CRITICAL / HIGH |
+| Missing `securityContext` | HIGH |
+| `runAsUser: 0` / missing `runAsNonRoot` | HIGH |
+| Missing `allowPrivilegeEscalation: false` | HIGH |
+| Missing resource limits (CPU / memory) | HIGH |
+| Dangerous capabilities (`ALL`, `SYS_ADMIN`) | CRITICAL |
+| Seccomp profile missing or `Unconfined` | HIGH |
+| AppArmor profile missing or `Unconfined` | MEDIUM |
+| `hostAliases` set | MEDIUM |
+| `hostUsers` not set to `false` | MEDIUM |
+| Secrets mounted as env vars | MEDIUM |
+| Default service account / auto-mounted token | MEDIUM |
+| `latest` image tag | MEDIUM |
+
+### RBAC
+
+| Check | Severity |
+|---|---|
+| `cluster-admin` bound to app service account | CRITICAL |
+| Wildcard `*` verbs / resources | CRITICAL |
+| `secrets` read access | HIGH |
+| `pods/exec` or `pods/attach` access | HIGH |
+| Role escalation (`bind` / `escalate` verbs) | CRITICAL |
+
+---
+
+## Plugin structure
 
 ```
 container-posture/                # Repo root (the marketplace)
@@ -141,6 +166,8 @@ container-posture/                # Repo root (the marketplace)
             rbac.md               # RBAC misconfiguration patterns
       commands/
         posture-check.md          # /posture-check slash command
+  demo/
+    samples/                      # Vulnerable Dockerfile + manifests for demos
   README.md
 ```
 
