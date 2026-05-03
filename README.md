@@ -22,7 +22,7 @@ Requires a recent version of Claude Code. If you see `This plugin uses a source 
 /plugin install container-posture@container-posture
 ```
 
-**3. Verify:** run `/plugin` — `container-posture` should appear as installed and `/posture-check` should be available.
+**3. Verify:** run `/plugin` — `container-posture` should appear as installed and the `/container-posture` skill should be available.
 
 ### Local install (for development)
 
@@ -37,15 +37,15 @@ From the **parent directory** of this repo:
 
 ## Use
 
-The slash command is the fastest way:
+Invoke the skill directly:
 
 ```
-/posture-check ./k8s/deployment.yaml     # one file
-/posture-check ./deploy/                 # a directory
-/posture-check .                         # current working directory
+/container-posture ./k8s/deployment.yaml     # one file
+/container-posture ./deploy/                 # a directory
+/container-posture .                         # current working directory
 ```
 
-The skill also activates automatically when Claude detects Dockerfiles or Kubernetes YAML in conversation:
+Or just describe what you want — the skill activates automatically when Claude detects Dockerfiles or Kubernetes YAML in conversation:
 
 ```
 Check the security posture of the Kubernetes manifests in ./k8s/
@@ -88,7 +88,7 @@ The `demo/samples/` directory ships with intentionally vulnerable files you can 
 ```
 cd demo/samples
 claude
-/posture-check .
+/container-posture .
 ```
 
 ---
@@ -164,8 +164,6 @@ container-posture/                # Repo root (the marketplace)
             dockerfile.md         # Dockerfile-specific checks
             pod-security.md       # Pod/container securityContext checks
             rbac.md               # RBAC misconfiguration patterns
-      commands/
-        posture-check.md          # /posture-check slash command
   demo/
     samples/                      # Vulnerable Dockerfile + manifests for demos
   README.md
