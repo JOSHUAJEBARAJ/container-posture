@@ -4,6 +4,8 @@ A Claude Code plugin that audits **Dockerfiles** and **Kubernetes manifests** fo
 
 No external scanners. No network calls. No install dependencies. Just Claude reading your files.
 
+
+![thumbnail](thumbnail.png)
 ---
 
 ## Install
